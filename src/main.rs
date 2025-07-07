@@ -7,7 +7,7 @@ use std::{
 mod file_manager;
 mod for_debug;
 use color_eyre::Result;
-use file_manager::{FileItem, list_dir};
+use file_manager::{FileItem, FileList, list_dir};
 use ratatui::{
     DefaultTerminal, Terminal,
     buffer::Buffer,
@@ -48,11 +48,6 @@ struct App {
     initial_full_path: String,
     curr_file: Option<String>, //  A string because if i save a File i cant get the name back xddd
                                //  I could use the FileItem but for now i dont really need the metadata (i think)
-}
-
-struct FileList {
-    files: Vec<FileItem>,
-    state: ListState,
 }
 
 impl Default for App {
@@ -178,20 +173,28 @@ fn convert_to_absolute_path(mut initial_path: String, mut relative_path: String)
 
 impl App {
     fn render_list(&mut self, area: Rect, buf: &mut Buffer) {
-        let list_title = if self.curr_file.is_none() {
-            convert_to_absolute_path(self.initial_full_path.clone(), self.curr_path.clone())
-        } else {
-            convert_to_absolute_path(self.initial_full_path.clone(), self.curr_path.clone())
-                + self.curr_file.as_ref().unwrap()
+        let mut list_title =
+            convert_to_absolute_path(self.initial_full_path.clone(), self.curr_path.clone());
+        if self.curr_file.is_some() {
+            list_title += self.curr_file.as_ref().unwrap()
         };
+
         let block = Block::new().title(Line::raw(list_title)).bg(LIST_BG_COLOR);
         //check if there is no border by not putting nothing of borders
 
         let items: Vec<ListItem> = if self.curr_file.is_none() {
+            //self.file_list.to_formated_list_item() //couldnt make it work
+
             self.file_list
                 .files
                 .iter()
-                .map(|file| ListItem::from(file.name()))
+                .map(|file| {
+                    ListItem::from(format!(
+                        "{:}                              {:}",
+                        file.name(),
+                        file.size()
+                    ))
+                })
                 .collect()
         } else {
             io::BufReader::new(
@@ -202,24 +205,16 @@ impl App {
             .map(ListItem::from) // same as |line|
             .collect() // ListItem::from(line)
         };
+
         let list = List::new(items)
             .block(block)
             .highlight_symbol(">")
             .highlight_style(SELECTED_STYLE)
             .highlight_spacing(HighlightSpacing::WhenSelected);
-
         StatefulWidget::render(list, area, buf, &mut self.file_list.state);
     }
     fn render_item_info(&mut self, area: Rect, buf: &mut Buffer) {
         let paragraph = Paragraph::new(String::from(&self.curr_path));
         Widget::render(paragraph, area, buf);
-    }
-}
-
-impl FileList {
-    fn from_path(path_str: &String) -> Self {
-        let files = list_dir(path_str).unwrap();
-        let state = ListState::default();
-        Self { files, state }
     }
 }
